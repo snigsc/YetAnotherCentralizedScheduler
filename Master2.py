@@ -39,7 +39,7 @@ class Task:
         return self.status
 
 
-lock.acquire()
+
 def sendTask(task,worker):
     clientName = "localhost"
     workerPort = worker.port
@@ -50,7 +50,6 @@ def sendTask(task,worker):
     msg = pickle.dumps(task)
     clientSocket.send(msg)
     clientSocket.close()
-lock.release()
 
 
 
@@ -80,10 +79,15 @@ def listenToWorker(wl):
                 reqList[job].scheduleReduceTask(wl)
             lock.release()
         except:
+            lock.acquire()
             r = completedTask.t_id.index('R')
             reqList[job].reds[int(completedTask.t_id[r+1:])].markCompleted()
-
+            jobDone = reqList[job].isCompletedR()
+            if jobDone:
+                print("JOB DONE:",job)
+            lock.release()
         
+
 
     masterSocket.close()
 
