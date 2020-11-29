@@ -16,27 +16,43 @@ for i in workersconfig['workers']:
     workers[count].extend([i['worker_id'],i['slots'],i['port'],0])
     count+=1
 
-print(workers)  #{1: [1, 5, 4000, 0], 2: [2, 7, 4001, 0], 3: [3, 3, 4002, 0]}
+#print(workers)  #{1: [1, 5, 4000, 0], 2: [2, 7, 4001, 0], 3: [3, 3, 4002, 0]}
 #worker: id,slots,port,num_tasks
 
 #scheduler = sys.argv[2]
 
-def randomScheduler(req):
+
+def makeRequestDict(req):
+    req['no_map_tasks']=len(req['map_tasks'])
+    req['no_reduce_tasks']=len(req['reduce_tasks'])
+    req['completed_map_tasks']=0
+    req['completed_reduce_tasks']=0
+    return req
+
+def randomScheduler():
     flag = 0
     while 1:
         w = random.randrange(1,4)
-        ports = workers[w][2]
+        slots = workers[w][1]
         tasks = workers[w][3]
-        if ports > tasks:
+        if slots > tasks:
             flag = w
             break
     if flag!=0:
         return flag
 
+
+#def processRequest(req):
+#    for i in req['map_tasks']:
+#        w = randomScheduler()
+#        sendTaskToWorker(i,w)
+
+
+
 def manageRequest(num):
-    '''Job request : {'job_id': '0', 'map_tasks': [{'task_id': '0_M0', 'duration': 2}, {'task_id': '0_M1', 'duration': 4}], 'reduce_tasks': [{'task_id': '0_R0', 'duration': 2}]}
+    '''{'job_id': '0', 'map_tasks': [{'task_id': '0_M0', 'duration': 2}, {'task_id': '0_M1', 'duration': 4}], 'reduce_tasks': [{'task_id': '0_R0', 'duration': 2}]}
     interval:  0.09692741268979561 
-    Job request : {'job_id': '1', 'map_tasks': [{'task_id': '1_M0', 'duration': 3}, {'task_id': '1_M1', 'duration': 1}, {'task_id': '1_M2', 'duration': 1}], 'reduce_tasks': [{'task_id': '1_R0', 'duration': 4}, {'task_id': '1_R1', 'duration': 2}]}'''
+    {'job_id': '1', 'map_tasks': [{'task_id': '1_M0', 'duration': 3}, {'task_id': '1_M1', 'duration': 1}, {'task_id': '1_M2', 'duration': 1}], 'reduce_tasks': [{'task_id': '1_R0', 'duration': 4}, {'task_id': '1_R1', 'duration': 2}]}'''
 
     serverName = "localhost"
     requestPort = 5000
@@ -48,10 +64,12 @@ def manageRequest(num):
         connectionSocket, addr = masterSocket.accept()
         ip = connectionSocket.recv(1024)
         req = json.loads(ip)
+        req = makeRequestDict(req)
+        send()
 
         #print(req)
-        w = randomScheduler(req)
-        print(w)
+        #w = randomScheduler(req)
+        #print(w)
 
     masterSocket.close()
 
