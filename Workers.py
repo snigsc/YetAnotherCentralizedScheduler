@@ -3,27 +3,8 @@ from socket import *
 import threading
 import pickle
 import time
+from Master2 import Task
 
-port = int(sys.argv[1])
-workerId = int(sys.argv[2])
-
-class Task:
-    def __init__(self,t_id,duration,status):
-        self.t_id = t_id
-        self.duration = duration
-        self.status = status
-    
-    def markCompleted(self):
-        self.status = 1
-
-    def isCompletedT(self):
-        return self.status
-
-    def printTask(self):
-        print(self.t_id, self.duration, self.status)  
-
-execPool = []
-lock = threading.Lock()
 
 def sendUpdate(task):
     clientName = "localhost"
@@ -47,32 +28,37 @@ def getTask():
         ip = connectionSocket.recv(1024)
         task = pickle.loads(ip)
         print('Received Task:',task.t_id)
-        #task.printTask()
         lock.acquire()
         execPool.append(task) 
         lock.release() 
+        # try:
+        #     t2 = threading.Thread(target=executeTask, args=())
+        #     t2.start()
+        #     #print('T2 started')
+        # except: 
+        #     pass
     masterSocket.close()
 
 def executeTask():
     global execPool
     while 1: 
-        lock.acquire()
+        time.sleep(1)
+        lock.acquire() 
         for i in execPool:
-            print('Remaining Durations: ',i.t_id,i.duration)
             i.duration -= 1
             if i.duration==0:
                 sendUpdate(i)
-        execPool = [i for i in execPool if i.duration!=0]
-        #print('Remaining Durations: ',[i.duration for i in execPool])
-        #time.sleep(0.1)       
+        execPool = [i for i in execPool if i.duration!=0]     
         lock.release()
 
-def main():
+if __name__ == '__main__': 
+    port = int(sys.argv[1])
+    workerId = int(sys.argv[2])
+    execPool = []
+    lock = threading.Lock()
     t1 = threading.Thread(target=getTask, args=())
     t1.start()
     print('T1 started')
     t2 = threading.Thread(target=executeTask, args=())
     t2.start()
     print('T2 started')
-
-main()
