@@ -1,10 +1,6 @@
-import json 
-#import socket
 import sys
-import _thread
 from socket import *
 import threading
-import random
 import pickle
 import time
 
@@ -24,11 +20,9 @@ class Task:
         return self.status
 
     def printTask(self):
-        print(self.t_id, self.duration, self.status)
-        
+        print(self.t_id, self.duration, self.status)  
 
 execPool = []
-
 lock = threading.Lock()
 
 def sendUpdate(task):
@@ -36,11 +30,10 @@ def sendUpdate(task):
     workerPort = 5001
     clientSocket = socket(AF_INET, SOCK_STREAM)
     clientSocket.connect((clientName,workerPort))
-    print('sending update',task.t_id,workerId)
+    print('Sending update to Worker: Task Completed',task.t_id)
     msg = pickle.dumps((task,workerId))
     clientSocket.send(msg)
     clientSocket.close()
-
 
 def getTask():
     serverName = "localhost"
@@ -48,41 +41,38 @@ def getTask():
     masterSocket = socket(AF_INET, SOCK_STREAM)
     masterSocket.bind(("",requestPort))
     masterSocket.listen(1)
-    print("The Worker is ready to receive")
+    print('Worker '+str(workerId)+' is ready to receive')
     while 1:
         connectionSocket, addr = masterSocket.accept()
         ip = connectionSocket.recv(1024)
         task = pickle.loads(ip)
-        print('received')
-        task.printTask()
+        print('Received Task:',task.t_id)
+        #task.printTask()
         lock.acquire()
         execPool.append(task) 
         lock.release() 
     masterSocket.close()
 
-def executeTasks():
-    print('inside exec')
-    #remaining = {}
+def executeTask():
     global execPool
     while 1: 
-        #print(execPool)
         lock.acquire()
         for i in execPool:
-            #if i.duration>0:
+            print('Remaining Durations: ',i.t_id,i.duration)
             i.duration -= 1
-            print(i.t_id,i.duration)
             if i.duration==0:
                 sendUpdate(i)
-        execPool = [i for i in execPool if i.duration!=0]       
+        execPool = [i for i in execPool if i.duration!=0]
+        #print('Remaining Durations: ',[i.duration for i in execPool])
+        #time.sleep(0.1)       
         lock.release()
-
 
 def main():
     t1 = threading.Thread(target=getTask, args=())
     t1.start()
-    print('t1 started')
-    t2 = threading.Thread(target=executeTasks, args=())
+    print('T1 started')
+    t2 = threading.Thread(target=executeTask, args=())
     t2.start()
-    print('t2 started')
+    print('T2 started')
 
 main()

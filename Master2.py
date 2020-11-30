@@ -8,7 +8,60 @@ import random
 import pickle
 import time
 
+
+def randomScheduler(wl):
+    while 1:
+        w = random.randrange(0,len(wl))
+        s = wl[w].slots
+        bs = wl[w].busy_slots
+        if bs < s:
+            return wl[w]
+    return -1
+
+c = 0
+def roundRobin(wl): 
+    global c
+    while 1:
+        n = c%3
+        if wl[n].slots > wl[n].busy_slots:
+            c += 1
+            print('n: ',n)
+            return wl[n]
+        c += 1
+    return c
+
+
+def leastLoaded(wl):
+    maxFreeSlots = 0
+    idx = -1
+    while idx==-1:
+        for i in range(len(wl)):
+            freeSlots = wl[i].slots - wl[i].busy_slots
+            print(freeSlots)
+            if freeSlots > maxFreeSlots:
+                maxFreeSlots = freeSlots
+                idx = i
+            #print(maxFreeSlots, wl[idx].w_id, i, wl[i].slots, wl[i].busy_slots)
+        if maxFreeSlots!=0:
+            return wl[idx]
+        time.sleep(1)
+    return wl[idx]
+
+
+scheduler = sys.argv[2]
+reqList = []
 lock = threading.Lock()
+
+if scheduler=='RR':
+    algo = roundRobin
+elif scheduler=='RANDOM':
+    algo = randomScheduler
+elif scheduler=='LL':
+    algo = leastLoaded
+else:
+    print("Invalid scheduling algorithm")
+    exit()
+
 
 class Worker:
     def __init__(self,w_id,slots,port,busy_slots):
@@ -39,12 +92,11 @@ class Task:
         return self.status
 
 
-
 def sendTask(task,worker):
     clientName = "localhost"
     workerPort = worker.port
     clientSocket = socket(AF_INET, SOCK_STREAM)
-    print('connecting to worker')
+    #print('connecting to worker')
     clientSocket.connect((clientName,workerPort))
     print('sending task')
     msg = pickle.dumps(task)
@@ -71,60 +123,22 @@ def listenToWorker(wl):
 
         try:
             m = completedTask.t_id.index('M')
-            reqList[job].maps[int(completedTask.t_id[m+1:])].markCompleted()
             lock.acquire()
+            reqList[job].maps[int(completedTask.t_id[m+1:])].markCompleted()
             ready = reqList[job].reducerReady()
             print('ready',ready, 'job',job)
             if ready:
                 reqList[job].scheduleReduceTask(wl)
             lock.release()
         except:
-            lock.acquire()
             r = completedTask.t_id.index('R')
+            lock.acquire()
             reqList[job].reds[int(completedTask.t_id[r+1:])].markCompleted()
             jobDone = reqList[job].isCompletedR()
             if jobDone:
                 print("JOB DONE:",job)
             lock.release()
-        
-
-
     masterSocket.close()
-
-
-
-def randomScheduler(wl):
-    while 1:
-        w = random.randrange(0,len(wl))
-        s = wl[w].slots
-        bs = wl[w].busy_slots
-        if bs < s:
-            return w
-    return -1
-
-
-def roundRobin(wl): 
-    w = 0
-    while 1:
-        pass
-    return -1
-
-
-def leastLoaded(wl):
-    maxFreeSlots = 0
-    freeWorker = -1
-    while freeWorker==-1:
-        for i in range(len(wl)):
-            freeSlots = wl[i].slots - wl[i].busy_slots
-            print(freeSlots)
-            if freeSlots > maxFreeSlots:
-                maxFreeSlots = freeSlots
-                freeWorker = i
-            print(maxFreeSlots, freeWorker, i, wl[i].slots, wl[i].busy_slots)
-        if maxFreeSlots!=0:
-            return freeWorker
-        time.sleep(1)
-    return freeWorker
 
 
 class Request:
@@ -141,17 +155,17 @@ class Request:
 
     def scheduleMapTask(self, wl):
         for i in self.maps:
-            freeWorker = leastLoaded(wl) 
-            sendTask(i,wl[freeWorker])
-            wl[freeWorker].markBusy()
-            print(freeWorker+1, wl[freeWorker].busy_slots)
+            freeWorker = algo(wl) 
+            print(freeWorker.w_id, freeWorker.busy_slots)
+            sendTask(i,freeWorker)
+            freeWorker.markBusy()
 
     def scheduleReduceTask(self, wl):
         for i in self.reds:
-            freeWorker = leastLoaded(wl) 
-            sendTask(i,wl[freeWorker])
-            wl[freeWorker].markBusy()
-            print(freeWorker+1, wl[freeWorker].busy_slots)
+            freeWorker = algo(wl) 
+            print(freeWorker.w_id, freeWorker.busy_slots)
+            sendTask(i,freeWorker)
+            freeWorker.markBusy()  
         
     def reducerReady(self):
         for i in self.maps:
@@ -171,9 +185,6 @@ class Request:
         print(self.reds) 
 
 
-
-reqList = []
-
 def getRequest(workersList):
     serverName = "localhost"
     requestPort = 5000
@@ -190,7 +201,6 @@ def getRequest(workersList):
         reqList.append(req)
         lock.release()
         req.scheduleMapTask(workersList)
-        #print(req.reducerReady())
     masterSocket.close()
 
 
@@ -198,7 +208,7 @@ def main():
     workersconfig = json.load(open(sys.argv[1],'r'))
     workersList = []
     for i in workersconfig['workers']:
-        print(i)
+        #print(i)
         workersList.append(Worker(i['worker_id'],i['slots'],i['port'],0))
 
     t1 = threading.Thread(target=getRequest, args=(workersList,))
