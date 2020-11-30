@@ -7,7 +7,21 @@ import threading
 import random
 import pickle
 import time
+from statistics import mean
+from statistics import median
+import os
 
+if os.path.exists('joblogs.txt'):
+  os.remove('joblogs.txt')
+if os.path.exists('tasklogs.txt'):
+  os.remove('tasklogs.txt')
+
+#jobLogs = open('joblogs.txt','a')
+# jobLogs.write('ANANANANANAYA')
+# jobLogs.write('appenddd')
+# jobLogs.write('\nthird')
+# jobLogs.close()
+#print('after write')
 
 def randomScheduler(wl):
     while 1:
@@ -78,11 +92,13 @@ class Worker:
 
 
 class Task:
-    def __init__(self,r_id,t_id,duration,status):
+    def __init__(self,r_id,t_id,duration,status,start_time,end_time):
         self.r_id = r_id
         self.t_id = t_id
         self.duration = duration
         self.status = status
+        self.start = start_time
+        self.end = end_time
     
     def markCompleted(self):
         self.status = 1
@@ -104,7 +120,6 @@ def sendTask(task,worker):
     clientSocket.close()
 
 
-
 def listenToWorker(wl):
     serverName = "localhost"
     requestPort = 5001
@@ -115,16 +130,23 @@ def listenToWorker(wl):
         connectionSocket, addr = masterSocket.accept()
         ip = connectionSocket.recv(1024)
         completedTask, updateWorker = pickle.loads(ip)
-        #print(completedTask.t_id)
+        end_time = time.time()
+        print('end time: ',end_time,completedTask.t_id)
         
-        #completedTask.markCompleted()
         wl[updateWorker-1].freeSlot()
         job = int(completedTask.r_id)
 
         try:
             m = completedTask.t_id.index('M')
             lock.acquire()
-            reqList[job].maps[int(completedTask.t_id[m+1:])].markCompleted()
+            ogCompletedTask = reqList[job].maps[int(completedTask.t_id[m+1:])]
+            ogCompletedTask.markCompleted()
+            ogCompletedTask.end = end_time
+            #print('TIME: ',ogCompletedTask.end - ogCompletedTask.start, type(ogCompletedTask.end - ogCompletedTask.start))
+            with open('tasklogs.txt','a') as taskLogs:                
+                taskLogs.write("{}\n".format(ogCompletedTask.end - ogCompletedTask.start))
+            taskLogs.close()
+
             ready = reqList[job].reducerReady()
             print('ready',ready, 'job',job)
             if ready:
@@ -133,30 +155,51 @@ def listenToWorker(wl):
         except:
             r = completedTask.t_id.index('R')
             lock.acquire()
-            reqList[job].reds[int(completedTask.t_id[r+1:])].markCompleted()
+            ogCompletedTask = reqList[job].reds[int(completedTask.t_id[r+1:])]
+            ogCompletedTask.markCompleted()
+            ogCompletedTask.end = end_time
+            with open('tasklogs.txt','a') as taskLogs:                
+                taskLogs.write("{}\n".format(ogCompletedTask.end - ogCompletedTask.start))
+            taskLogs.close()            
+            
             jobDone = reqList[job].isCompletedR()
             if jobDone:
+                reqList[job].end = end_time
                 print("JOB DONE:",job)
+                #print('TIME: ',reqList[job].end - reqList[job].start, type(reqList[job].end - reqList[job].start))
+                with open('joblogs.txt','a') as jobLogs:                
+                    jobLogs.write("{}\n".format(reqList[job].end - reqList[job].start))
+                jobLogs.close()
             lock.release()
     masterSocket.close()
 
 
+reqTimes = []
+# def logs():
+#     jobMean = mean(reqTimes)
+#     jobMedian = median(reqTimes)
+#     print(jobMean, jobMedian)
+
 class Request:
     maps = []
     red = []
-    def __init__(self,r_id,map_tasks,reduce_tasks):
+    def __init__(self,r_id,map_tasks,reduce_tasks,start_time,end_time):
         self.maps = []
         self.reds = []
         self.r_id = r_id
         for i in map_tasks:
-            self.maps.append(Task(self.r_id,i['task_id'],i['duration'],0))
+            self.maps.append(Task(self.r_id,i['task_id'],i['duration'],0,-1,-1))
         for i in reduce_tasks:
-            self.reds.append(Task(self.r_id,i['task_id'],i['duration'],0))
+            self.reds.append(Task(self.r_id,i['task_id'],i['duration'],0,-1,-1))
+        self.start = start_time
+        self.end = end_time
 
     def scheduleMapTask(self, wl):
         for i in self.maps:
             freeWorker = algo(wl) 
             print(freeWorker.w_id, freeWorker.busy_slots)
+            i.start = time.time()
+            print('start time: ',i.start,i.t_id)
             sendTask(i,freeWorker)
             freeWorker.markBusy()
 
@@ -164,6 +207,7 @@ class Request:
         for i in self.reds:
             freeWorker = algo(wl) 
             print(freeWorker.w_id, freeWorker.busy_slots)
+            i.start = time.time()
             sendTask(i,freeWorker)
             freeWorker.markBusy()  
         
@@ -196,7 +240,8 @@ def getRequest(workersList):
         connectionSocket, addr = masterSocket.accept()
         ip = connectionSocket.recv(1024)
         req_json = json.loads(ip)
-        req = Request(req_json['job_id'],req_json['map_tasks'],req_json['reduce_tasks'])
+        start_time = time.time()
+        req = Request(req_json['job_id'],req_json['map_tasks'],req_json['reduce_tasks'],start_time,-1)
         lock.acquire()
         reqList.append(req)
         lock.release()
@@ -215,5 +260,7 @@ def main():
     t2 = threading.Thread(target=listenToWorker, args=(workersList,)) 
     t1.start()
     t2.start()
+
+    #logs()
 
 main()
