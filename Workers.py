@@ -57,7 +57,7 @@ def executeTask():
             # send update to Master on completion of task -> remaining duration = 0
             if i.duration==0:
                 sendUpdate(i)
-            print(i.t_id, i.duration)
+            #print(i.t_id, i.duration)
         # execPool repopulated with only those tasks that still need to run (removes all those with duration = 0)
         execPool = [i for i in execPool if i.duration!=0]  
         # release lock -> exiting critical section -> execPool[]   

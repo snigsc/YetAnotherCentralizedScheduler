@@ -24,7 +24,6 @@ def send_request(job_request):
 		#send task
 		s.send(message.encode())
 
-
 if __name__ == '__main__':
 	if(len(sys.argv)!=2):
 		print("Usage: python requests.py <number_of_requests>")

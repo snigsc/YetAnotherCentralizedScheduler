@@ -42,7 +42,7 @@ def leastLoaded(wl):
     while idx==-1:
         for i in range(len(wl)):
             freeSlots = wl[i].slots - wl[i].busy_slots
-            print(freeSlots)
+            #print(freeSlots)
             if freeSlots > maxFreeSlots:
                 maxFreeSlots = freeSlots
                 idx = i
@@ -97,10 +97,10 @@ def listenToWorker(wl):
             ogCompletedTask = reqList[job].maps[int(completedTask.t_id[m+1:])]
             ogCompletedTask.markCompleted()
             ogCompletedTask.end = end_time
-            # writing time taken for each map task into file -> tasklogs.txt
+            # writing time taken for each map task into file -> tasklogs.csv
             print('Task: ', ogCompletedTask.t_id, 'completed')
-            with open('tasklogs.txt','a') as taskLogs:                
-                taskLogs.write("{}:{}\n".format(ogCompletedTask.t_id, ogCompletedTask.end - ogCompletedTask.start))
+            with open(scheduler+'_tasklogs.csv','a') as taskLogs:                
+                taskLogs.write("{},{},{},{},{}\n".format(updateWorker, ogCompletedTask.t_id, ogCompletedTask.start, ogCompletedTask.end, ogCompletedTask.end - ogCompletedTask.start))
             taskLogs.close()
             # checks if all map tasks of a job are completed
             # ready = 1 : completed all mappers, else ready = 0
@@ -127,10 +127,10 @@ def listenToWorker(wl):
             ogCompletedTask = reqList[job].reds[int(completedTask.t_id[r+1:])]
             ogCompletedTask.markCompleted()
             ogCompletedTask.end = end_time
-            # writing time taken for each reduce task into file -> tasklogs.txt
+            # writing time taken for each reduce task into file -> tasklogs.csv
             print('Task: ', ogCompletedTask.t_id, 'completed')
-            with open('tasklogs.txt','a') as taskLogs:                
-                taskLogs.write("{}:{}\n".format(ogCompletedTask.t_id, ogCompletedTask.end - ogCompletedTask.start))
+            with open(scheduler+'_tasklogs.csv','a') as taskLogs:                
+                taskLogs.write("{},{},{},{},{}\n".format(updateWorker,ogCompletedTask.t_id, ogCompletedTask.start, ogCompletedTask.end, ogCompletedTask.end - ogCompletedTask.start))
             taskLogs.close()           
             # checks if all the tasks (map and reduce) of a job are completed
             # jobDone = 1 : completed all tasks, else jobDone = 0
@@ -139,9 +139,9 @@ def listenToWorker(wl):
                 # end time of job = end time of last reduce task
                 reqList[job].end = end_time
                 print('Job ', job, 'completed')
-                # writing time taken for job into file -> joblogs.txt
-                with open('joblogs.txt','a') as jobLogs:                
-                    jobLogs.write("{}:{}\n".format(job, reqList[job].end - reqList[job].start))
+                # writing time taken for job into file -> joblogs.csv
+                with open(scheduler+'_joblogs.csv','a') as jobLogs:                
+                    jobLogs.write("{},{},{},{}\n".format(job, reqList[job].start, reqList[job].end, reqList[job].end - reqList[job].start))
                 jobLogs.close()
             lock.release()
     masterSocket.close()
@@ -261,19 +261,28 @@ class Request:
         print(self.reds) 
 
 
+def delExistingFile(scheduler):
+    # joblogs.csv -> File with time taken for each of the jobs to execute
+    if os.path.exists(scheduler+'_joblogs.csv'):
+        os.remove(scheduler+'_joblogs.csv')
+    # tasklogs.csv -> File with time taken for each of the tasks to execute
+    if os.path.exists(scheduler+'_tasklogs.csv'):
+        os.remove(scheduler+'_tasklogs.csv')
+    with open(scheduler+'_joblogs.csv','a') as f:
+        f.write('JobID,startTime,endtime,JobCompletionTime\n')
+    f.close()
+    with open(scheduler+'_tasklogs.csv','a') as f:
+        f.write('WorkerID,taskID,startTime,endTime,TaskCompletionTime\n')
+    f.close()
+
 if __name__ == '__main__':
-    # joblogs.txt -> File with time taken for each of the jobs to execute
-    if os.path.exists('joblogs.txt'):
-        os.remove('joblogs.txt')
-    # tasklogs.txt -> File with time taken for each of the tasks to execute
-    if os.path.exists('tasklogs.txt'):
-        os.remove('tasklogs.txt')
     workersconfig = json.load(open(sys.argv[1],'r'))
     # workersList -> list of 3 worker objects
     workersList = []
     for i in workersconfig['workers']:
         workersList.append(Worker(i['worker_id'],i['slots'],i['port'],0))   
     # CLI argument for scheduling algo
+    global scheduler
     scheduler = sys.argv[2]
     # list of all request objects sent to Master
     reqList = []
@@ -288,6 +297,7 @@ if __name__ == '__main__':
     else:
         print("Invalid scheduling algorithm")
         exit()
+    delExistingFile(scheduler)
     # thread t1 -> gets and assigns tasks in the requests
     t1 = threading.Thread(target=getRequest, args=(workersList,))
     # thread t2 -> listens to worker for task updates
