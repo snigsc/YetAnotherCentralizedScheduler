@@ -42,7 +42,7 @@ def leastLoaded(wl):
     while idx==-1:
         for i in range(len(wl)):
             freeSlots = wl[i].slots - wl[i].busy_slots
-            # print(freeSlots)
+            print(freeSlots)
             if freeSlots > maxFreeSlots:
                 maxFreeSlots = freeSlots
                 idx = i

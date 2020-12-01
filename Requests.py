@@ -29,6 +29,7 @@ if __name__ == '__main__':
 	if(len(sys.argv)!=2):
 		print("Usage: python requests.py <number_of_requests>")
 		exit()
+	#filereq = open('Req1.txt','a')
 
 	#get number of requests to be generated
 	number_of_requests=int(sys.argv[1])
@@ -39,6 +40,7 @@ if __name__ == '__main__':
 	job_request=create_job_request(str(request_number))
 	print("interval: ",0,"\n Job request :",job_request)
 	send_request(job_request)
+	#filereq.write(str(job_request)+'\n')
 	request_number+=1
 	while request_number<number_of_requests:
 		interval=arrivals[request_number-1]
@@ -49,8 +51,11 @@ if __name__ == '__main__':
 		job_request=create_job_request(str(request_number))
 		print("interval: ",interval,"\n Job request :",job_request)
 		send_request(job_request)
+		#filereq.write(str(job_request)+'\n')
 		last_request_time=time.time()
 		request_number+=1
+	
+	#filereq.close()
 
 
 

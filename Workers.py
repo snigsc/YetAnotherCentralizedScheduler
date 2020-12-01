@@ -32,15 +32,16 @@ def getTask(workerId):
         print('Received Task:',task.t_id)
         # acquire lock -> critical section -> execPool[]
         lock.acquire()
+        #print('getTask')
         execPool.append(task) 
         # release lock -> exiting critical section -> execPool[]
         lock.release() 
-        # try:
-        #     t2 = threading.Thread(target=executeTask, args=())
-        #     t2.start()
-        #     #print('T2 started')
-        # except: 
-        #     pass
+        try:
+            t2 = threading.Thread(target=executeTask, args=())
+            t2.start()
+            #print('T2 started')
+        except: 
+            pass
     masterSocket.close()
 
 # fn to execute tasks and decrement duration for tasks per clock cycle, until task is complete
@@ -50,11 +51,13 @@ def executeTask():
         time.sleep(1)
         # acquire lock -> accessing critical section -> execPool[]
         lock.acquire() 
+        #print('executeTask')
         for i in execPool:
             i.duration -= 1
             # send update to Master on completion of task -> remaining duration = 0
             if i.duration==0:
                 sendUpdate(i)
+            print(i.t_id, i.duration)
         # execPool repopulated with only those tasks that still need to run (removes all those with duration = 0)
         execPool = [i for i in execPool if i.duration!=0]  
         # release lock -> exiting critical section -> execPool[]   
@@ -71,6 +74,6 @@ if __name__ == '__main__':
     t1.start()
     # print('T1 started')
     # thread 2 -> executes tasks and sends updates to Master
-    t2 = threading.Thread(target=executeTask, args=())
-    t2.start()
-    # print('T2 started')
+    # t2 = threading.Thread(target=executeTask, args=())
+    # t2.start()
+    # # print('T2 started')

@@ -42,7 +42,7 @@ def leastLoaded(wl):
     while idx==-1:
         for i in range(len(wl)):
             freeSlots = wl[i].slots - wl[i].busy_slots
-            #print(freeSlots)
+            # print(freeSlots)
             if freeSlots > maxFreeSlots:
                 maxFreeSlots = freeSlots
                 idx = i
@@ -52,6 +52,122 @@ def leastLoaded(wl):
         time.sleep(1)
     return wl[idx]
 
+# establishing a connection with the worker and sending the task to be executed
+def sendTask(task,worker):
+    clientName = "localhost"
+    workerPort = worker.port
+    clientSocket = socket(AF_INET, SOCK_STREAM)
+    clientSocket.connect((clientName,workerPort))
+    print('Sending task: ', task.t_id, 'to worker: ', worker.w_id)
+    msg = pickle.dumps(task)
+    clientSocket.send(msg)
+    clientSocket.close()
+
+def callScheduleReduceTask(wl,job):
+    lock.acquire()
+    reqList[job].scheduleReduceTask(wl)
+    lock.release()
+
+# listening to the worker for updates -> completed task and worker
+def listenToWorker(wl):
+    serverName = "localhost"
+    requestPort = 5001
+    masterSocket = socket(AF_INET, SOCK_STREAM)
+    masterSocket.bind(("",requestPort))
+    masterSocket.listen(1)
+    while 1:
+        connectionSocket, addr = masterSocket.accept()
+        ip = connectionSocket.recv(1024)
+        # completedTask -> The completed task object 
+        # updateWorker -> Id of the worker that executed the task
+        completedTask, updateWorker = pickle.loads(ip)
+        end_time = time.time()
+        # index position of worker in workerList = workerId - 1
+        wl[updateWorker-1].freeSlot()
+        # job -> stores the Job ID of the task that completed execution
+        job = int(completedTask.r_id)
+
+        try:
+            # completedTask.t_id of the form 0_M0 ; m -> index of 'M'
+            m = completedTask.t_id.index('M')
+            # start of critical section -> reqList access 
+            lock.acquire()
+            # completedTask.t_id[m+1:] -> gives the index of the map task in maps[]
+            # returns the completed task object using reqList
+            ogCompletedTask = reqList[job].maps[int(completedTask.t_id[m+1:])]
+            ogCompletedTask.markCompleted()
+            ogCompletedTask.end = end_time
+            # writing time taken for each map task into file -> tasklogs.txt
+            print('Task: ', ogCompletedTask.t_id, 'completed')
+            with open('tasklogs.txt','a') as taskLogs:                
+                taskLogs.write("{}:{}\n".format(ogCompletedTask.t_id, ogCompletedTask.end - ogCompletedTask.start))
+            taskLogs.close()
+            # checks if all map tasks of a job are completed
+            # ready = 1 : completed all mappers, else ready = 0
+            ready = reqList[job].reducerReady()
+            # end of critical section -> reqList access 
+            lock.release()
+            # reducer tasks scheduled after all mapper tasks execute
+            if ready:
+                print('Job ', job, 'scheduling reducer tasks')
+                try:
+                    t3 = threading.Thread(target=callScheduleReduceTask, args=(wl,job))
+                    t3.start()
+                except: 
+                    pass
+                #reqList[job].scheduleReduceTask(wl)
+            
+        except:
+            # completedTask.t_id of the form 0_R0 ; r -> index of 'R'
+            r = completedTask.t_id.index('R')
+            # start of critical section -> reqList access 
+            lock.acquire()
+            # completedTask.t_id[r+1:] -> gives the index of the map task in reds[]
+            # returns the completed task object using reqList
+            ogCompletedTask = reqList[job].reds[int(completedTask.t_id[r+1:])]
+            ogCompletedTask.markCompleted()
+            ogCompletedTask.end = end_time
+            # writing time taken for each reduce task into file -> tasklogs.txt
+            print('Task: ', ogCompletedTask.t_id, 'completed')
+            with open('tasklogs.txt','a') as taskLogs:                
+                taskLogs.write("{}:{}\n".format(ogCompletedTask.t_id, ogCompletedTask.end - ogCompletedTask.start))
+            taskLogs.close()           
+            # checks if all the tasks (map and reduce) of a job are completed
+            # jobDone = 1 : completed all tasks, else jobDone = 0
+            jobDone = reqList[job].isCompletedR()
+            if jobDone:
+                # end time of job = end time of last reduce task
+                reqList[job].end = end_time
+                print('Job ', job, 'completed')
+                # writing time taken for job into file -> joblogs.txt
+                with open('joblogs.txt','a') as jobLogs:                
+                    jobLogs.write("{}:{}\n".format(job, reqList[job].end - reqList[job].start))
+                jobLogs.close()
+            lock.release()
+    masterSocket.close()
+
+# listens for requests from Requests.py at port 5000
+def getRequest(workersList):
+    serverName = "localhost"
+    requestPort = 5000
+    masterSocket = socket(AF_INET, SOCK_STREAM)
+    masterSocket.bind(("",requestPort))
+    masterSocket.listen(1)
+    print("The Master is ready to receive")
+    while 1:
+        connectionSocket, addr = masterSocket.accept()
+        ip = connectionSocket.recv(1024)
+        req_json = json.loads(ip)
+        start_time = time.time()
+        # creates object req of class Request for each job
+        req = Request(req_json['job_id'],req_json['map_tasks'],req_json['reduce_tasks'],start_time,-1)
+        # critical section -> reqList (global list of Requests)
+        lock.acquire()
+        reqList.append(req)
+        # end of critical section
+        lock.release()
+        req.scheduleMapTask(workersList)
+    masterSocket.close()
 
 # worker class to create the 3 worker objects with id, slots, ports
 # busy slots -> created to mark number of slots occupied my tasks in the worker
@@ -91,90 +207,6 @@ class Task:
     # checks if task is complete
     def isCompletedT(self):
         return self.status
-
-# establishing a connection with the worker and sending the task to be executed
-def sendTask(task,worker):
-    clientName = "localhost"
-    workerPort = worker.port
-    clientSocket = socket(AF_INET, SOCK_STREAM)
-    clientSocket.connect((clientName,workerPort))
-    print('Sending task:', task.t_id, 'to worker:', worker.w_id)
-    msg = pickle.dumps(task)
-    clientSocket.send(msg)
-    clientSocket.close()
-
-# listening to the worker for updates -> completed task and worker
-def listenToWorker(wl):
-    serverName = "localhost"
-    requestPort = 5001
-    masterSocket = socket(AF_INET, SOCK_STREAM)
-    masterSocket.bind(("",requestPort))
-    masterSocket.listen(1)
-    while 1:
-        connectionSocket, addr = masterSocket.accept()
-        ip = connectionSocket.recv(1024)
-        # completedTask -> The completed task object 
-        # updateWorker -> Id of the worker that executed the task
-        completedTask, updateWorker = pickle.loads(ip)
-        end_time = time.time()
-        # index position of worker in workerList = workerId - 1
-        wl[updateWorker-1].freeSlot()
-        # job -> stores the Job ID of the task that completed execution
-        job = int(completedTask.r_id)
-
-        try:
-            # completedTask.t_id of the form 0_M0 ; m -> index of 'M'
-            m = completedTask.t_id.index('M')
-            # start of critical section -> reqList access 
-            lock.acquire()
-            # completedTask.t_id[m+1:] -> gives the index of the map task in maps[]
-            # returns the completed task object using reqList
-            ogCompletedTask = reqList[job].maps[int(completedTask.t_id[m+1:])]
-            ogCompletedTask.markCompleted()
-            ogCompletedTask.end = end_time
-            # writing time taken for each map task into file -> tasklogs.txt
-            print('Task:', ogCompletedTask.t_id, 'completed')
-            with open('tasklogs.txt','a') as taskLogs:                
-                taskLogs.write("{}:{}\n".format(ogCompletedTask.t_id, ogCompletedTask.end - ogCompletedTask.start))
-            taskLogs.close()
-            # checks if all map tasks of a job are completed
-            # ready = 1 : completed all mappers, else ready = 0
-            ready = reqList[job].reducerReady()
-            # reducer tasks scheduled after all mapper tasks execute
-            if ready:
-                print('Job', job, 'scheduling reducer tasks')
-                reqList[job].scheduleReduceTask(wl)
-            # end of critical section -> reqList access 
-            lock.release()
-
-        except:
-            # completedTask.t_id of the form 0_R0 ; r -> index of 'R'
-            r = completedTask.t_id.index('R')
-            # start of critical section -> reqList access 
-            lock.acquire()
-            # completedTask.t_id[r+1:] -> gives the index of the map task in reds[]
-            # returns the completed task object using reqList
-            ogCompletedTask = reqList[job].reds[int(completedTask.t_id[r+1:])]
-            ogCompletedTask.markCompleted()
-            ogCompletedTask.end = end_time
-            # writing time taken for each reduce task into file -> tasklogs.txt
-            print('Task: ', ogCompletedTask.t_id, 'completed')
-            with open('tasklogs.txt','a') as taskLogs:                
-                taskLogs.write("{}:{}\n".format(ogCompletedTask.t_id, ogCompletedTask.end - ogCompletedTask.start))
-            taskLogs.close()           
-            # checks if all the tasks (map and reduce) of a job are completed
-            # jobDone = 1 : completed all tasks, else jobDone = 0
-            jobDone = reqList[job].isCompletedR()
-            if jobDone:
-                # end time of job = end time of last reduce task
-                reqList[job].end = end_time
-                print('Job', job, 'completed')
-                # writing time taken for job into file -> joblogs.txt
-                with open('joblogs.txt','a') as jobLogs:                
-                    jobLogs.write("{}:{}\n".format(job, reqList[job].end - reqList[job].start))
-                jobLogs.close()
-            lock.release()
-    masterSocket.close()
 
 # request class to create the request objects (jobs)
 # maps [] -> used to store all map tasks of a job
@@ -227,29 +259,6 @@ class Request:
     def printTasks(self):
         print(self.maps)
         print(self.reds) 
-
-# listens for requests from Requests.py at port 5000
-def getRequest(workersList):
-    serverName = "localhost"
-    requestPort = 5000
-    masterSocket = socket(AF_INET, SOCK_STREAM)
-    masterSocket.bind(("",requestPort))
-    masterSocket.listen(1)
-    print("The Master is ready to receive")
-    while 1:
-        connectionSocket, addr = masterSocket.accept()
-        ip = connectionSocket.recv(1024)
-        req_json = json.loads(ip)
-        start_time = time.time()
-        # creates object req of class Request for each job
-        req = Request(req_json['job_id'],req_json['map_tasks'],req_json['reduce_tasks'],start_time,-1)
-        # critical section -> reqList (global list of Requests)
-        lock.acquire()
-        reqList.append(req)
-        # end of critical section
-        lock.release()
-        req.scheduleMapTask(workersList)
-    masterSocket.close()
 
 
 if __name__ == '__main__':
