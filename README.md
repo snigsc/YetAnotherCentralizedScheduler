@@ -3,10 +3,11 @@ Big Data Project - December 2020
 
 ### Instructions for execution:
 **Files required:**  
+Analysis.py  
 Config.json  
 Master.py  
+Requests.py  
 Workers.py  
-Analysis.py  
 
 1. Five terminals are needed to execute this project. We will refer to them as T1, T2, T3, T4 ad T5.
 
