@@ -19,7 +19,7 @@ T3: `python3 Workers.py 4002 3`
 `python3 Master.py Config.json <scheduling_algorithm>`  
 Here, scheduling algorithm can take the following values - LL (least loaded), RANDOM (random) or RR (round robin).
 
-4. Run the following command to send job requests to the master on T5:  
+4. Run the following command on T5 to send job requests to the master:  
 `python3 Requests.py <number_of_requests>`  
 
 5. Repeat steps 2 to 4 for each scheduling algorithm and run the following command on T5 to analyse the results obtained:  
