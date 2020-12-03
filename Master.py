@@ -10,6 +10,8 @@ from statistics import mean
 from statistics import median
 import os
 
+red_tasks = []
+
 # Random Scheduler - Randomly schedules tasks to worker with free slots - returns worker
 # wl -> list of the three worker objects
 def randomScheduler(wl):
@@ -42,12 +44,12 @@ def leastLoaded(wl):
     while idx==-1:
         for i in range(len(wl)):
             freeSlots = wl[i].slots - wl[i].busy_slots
-            print(freeSlots)
+            #print(freeSlots)
             if freeSlots > maxFreeSlots:
                 maxFreeSlots = freeSlots
                 idx = i
             #print(maxFreeSlots, wl[idx].w_id, i, wl[i].slots, wl[i].busy_slots)
-        if maxFreeSlots!=0:
+        if maxFreeSlots>0:
             return wl[idx]
         time.sleep(1)
     return wl[idx]
@@ -63,10 +65,22 @@ def sendTask(task,worker):
     clientSocket.send(msg)
     clientSocket.close()
 
-def callScheduleReduceTask(wl,job):
-    lock.acquire()
-    reqList[job].scheduleReduceTask(wl)
-    lock.release()
+# def callScheduleReduceTask(wl,job):
+#     lock.acquire()
+#     reqList[job].scheduleReduceTask(wl)
+#     lock.release()
+
+def scheduleReduceTask(wl):
+    lock = threading.Lock()
+    while red_tasks:
+        # freeWorker -> worker that the task gets assigned to according to the selected algo
+        lock.acquire()
+        i = red_tasks.pop(0)
+        lock.release()
+        freeWorker = algo(wl)
+        i.start = time.time()
+        sendTask(i,freeWorker)
+        freeWorker.markBusy()
 
 # listening to the worker for updates -> completed task and worker
 def listenToWorker(wl):
@@ -74,7 +88,7 @@ def listenToWorker(wl):
     requestPort = 5001
     masterSocket = socket(AF_INET, SOCK_STREAM)
     masterSocket.bind(("",requestPort))
-    masterSocket.listen(1)
+    masterSocket.listen(100)
     while 1:
         connectionSocket, addr = masterSocket.accept()
         ip = connectionSocket.recv(1024)
@@ -95,6 +109,7 @@ def listenToWorker(wl):
             # completedTask.t_id[m+1:] -> gives the index of the map task in maps[]
             # returns the completed task object using reqList
             ogCompletedTask = reqList[job].maps[int(completedTask.t_id[m+1:])]
+            lock.release()
             ogCompletedTask.markCompleted()
             ogCompletedTask.end = end_time
             # writing time taken for each map task into file -> tasklogs.csv
@@ -104,18 +119,21 @@ def listenToWorker(wl):
             taskLogs.close()
             # checks if all map tasks of a job are completed
             # ready = 1 : completed all mappers, else ready = 0
+            lock.acquire()
             ready = reqList[job].reducerReady()
             # end of critical section -> reqList access 
             lock.release()
             # reducer tasks scheduled after all mapper tasks execute
             if ready:
                 print('Job ', job, 'scheduling reducer tasks')
+                lock.acquire()
+                red_tasks.extend(reqList[job].reds)
+                lock.release()
                 try:
-                    t3 = threading.Thread(target=callScheduleReduceTask, args=(wl,job))
+                    t3 = threading.Thread(target = scheduleReduceTask, args=(wl, ))
                     t3.start()
                 except: 
                     pass
-                #reqList[job].scheduleReduceTask(wl)
             
         except:
             # completedTask.t_id of the form 0_R0 ; r -> index of 'R'
@@ -125,6 +143,7 @@ def listenToWorker(wl):
             # completedTask.t_id[r+1:] -> gives the index of the map task in reds[]
             # returns the completed task object using reqList
             ogCompletedTask = reqList[job].reds[int(completedTask.t_id[r+1:])]
+            lock.release()
             ogCompletedTask.markCompleted()
             ogCompletedTask.end = end_time
             # writing time taken for each reduce task into file -> tasklogs.csv
@@ -134,6 +153,7 @@ def listenToWorker(wl):
             taskLogs.close()           
             # checks if all the tasks (map and reduce) of a job are completed
             # jobDone = 1 : completed all tasks, else jobDone = 0
+            lock.acquire()
             jobDone = reqList[job].isCompletedR()
             if jobDone:
                 # end time of job = end time of last reduce task
@@ -144,6 +164,7 @@ def listenToWorker(wl):
                     jobLogs.write("{},{},{},{}\n".format(job, reqList[job].start, reqList[job].end, reqList[job].end - reqList[job].start))
                 jobLogs.close()
             lock.release()
+            
     masterSocket.close()
 
 # listens for requests from Requests.py at port 5000
@@ -233,14 +254,6 @@ class Request:
             i.start = time.time()
             sendTask(i,freeWorker)
             freeWorker.markBusy()
-
-    def scheduleReduceTask(self, wl):
-        for i in self.reds:
-            # freeWorker -> worker that the task gets assigned to according to the selected algo
-            freeWorker = algo(wl)
-            i.start = time.time()
-            sendTask(i,freeWorker)
-            freeWorker.markBusy()  
 
     # checks if all map tasks are complete and reducer tasks can begin executing
     def reducerReady(self):
