@@ -65,7 +65,7 @@ for f in files:
     jmedianlst.append(median(jobs['JobCompletionTime'].tolist()))
     tmeanlst.append(mean(tasks['TaskCompletionTime'].tolist()))
     tmedianlst.append(median(tasks['TaskCompletionTime'].tolist()))
-
+    
     #heatmap
     time0 = min(tasks['startTime'].tolist())
     timeN = max(tasks['endTime'].tolist())+1
