@@ -10,9 +10,6 @@ from statistics import mean
 from statistics import median
 import os
 
-# list of reduce tasks with no dependencies
-red_tasks = []
-
 # Random Scheduler - Randomly schedules tasks to worker with free slots - returns worker
 # wl -> list of the three worker objects
 def randomScheduler(wl):
@@ -310,6 +307,9 @@ if __name__ == '__main__':
     
     # list of all request objects sent to Master
     reqList = []
+    
+    # list of reduce tasks with no dependencies
+    red_tasks = []
     
     # creating lock object to take care of critical sections of the code
     lock = threading.Lock()

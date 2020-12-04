@@ -7,6 +7,25 @@ import os
 
 mode = sys.argv[1]
 
+def barChart():
+    #bar chart
+    df = pd.DataFrame([jmeanlst,tmeanlst,jmedianlst,tmedianlst])
+    df.columns = ['Metric','RANDOM','RR','LL']
+    pos = list(range(len(df['LL'])))
+    width = 0.25
+    fig, ax = plt.pyplot.subplots(figsize=(10,5))
+    plt.pyplot.bar(pos, df['LL'], width, alpha=0.5, color='#EE3224')
+    plt.pyplot.bar([p + width for p in pos], df['RR'], width, alpha=0.5, color='#F78F1E')
+    plt.pyplot.bar([p + width*2 for p in pos], df['RANDOM'], width, alpha=0.5, color='#FFC222')
+    ax.set_ylabel('Time')
+    ax.set_title('Comparison')
+    ax.set_xticks([p + 1.5 * width for p in pos])
+    ax.set_xticklabels(df['Metric'])
+    plt.pyplot.xlim(min(pos)-width, max(pos)+width*4)
+    plt.pyplot.ylim([0, max(df['LL'] + df['RR'] + df['RANDOM'])] )
+    plt.pyplot.legend(['LL', 'RR', 'RANDOM'], loc='upper left')
+    plt.pyplot.savefig('barChart.png')
+
 def heatMap(f):
     jobs = pd.read_csv(f[0])
     tasks = pd.read_csv(f[1])
@@ -83,6 +102,10 @@ elif mode=="LL":
         heatMap(f)
     exit()
 elif mode=="ALL":
+    if not os.path.isfile('RR_joblogs.csv') or not os.path.isfile('RR_tasklogs.csv') or not os.path.isfile('LL_joblogs.csv') or not os.path.isfile('LL_tasklogs.csv') or not os.path.isfile('RANDOM_joblogs.csv') or not os.path.isfile('RANDOM_tasklogs.csv'):
+        print('Files do not exist.')
+        exit()
+
     f_RANDOM=['RANDOM_joblogs.csv','RANDOM_tasklogs.csv']
     f_RR=['RR_joblogs.csv','RR_tasklogs.csv']
     f_LL=['LL_joblogs.csv','LL_tasklogs.csv']
@@ -90,21 +113,5 @@ elif mode=="ALL":
     heatMap(f_RR)
     heatMap(f_LL)
 
-    #bar chart
-    df = pd.DataFrame([jmeanlst,tmeanlst,jmedianlst,tmedianlst])
-    df.columns = ['Metric','RANDOM','RR','LL']
-    pos = list(range(len(df['LL'])))
-    width = 0.25
-    fig, ax = plt.pyplot.subplots(figsize=(10,5))
-    plt.pyplot.bar(pos, df['LL'], width, alpha=0.5, color='#EE3224')
-    plt.pyplot.bar([p + width for p in pos], df['RR'], width, alpha=0.5, color='#F78F1E')
-    plt.pyplot.bar([p + width*2 for p in pos], df['RANDOM'], width, alpha=0.5, color='#FFC222')
-    ax.set_ylabel('Time')
-    ax.set_title('Comparison')
-    ax.set_xticks([p + 1.5 * width for p in pos])
-    ax.set_xticklabels(df['Metric'])
-    plt.pyplot.xlim(min(pos)-width, max(pos)+width*4)
-    plt.pyplot.ylim([0, max(df['LL'] + df['RR'] + df['RANDOM'])] )
-    plt.pyplot.legend(['LL', 'RR', 'RANDOM'], loc='upper left')
-    plt.pyplot.savefig('barChart.png')
+    barChart()
     print('Done. Please check current working directory for files:\n barChart.png\n RANDOM_tasklogs.png\n RR_tasklogs.png\n LL_tasklogs.png')

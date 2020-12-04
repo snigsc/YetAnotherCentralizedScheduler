@@ -54,7 +54,7 @@ def executeTask():
         #print('executeTask')
         for i in execPool:
             if (time.time() - i[1]) >= i[0].duration:
-                i[0].duration -= 1
+                i[0].duration = 0
             # send update to Master on completion of task -> remaining duration = 0
             if i[0].duration==0:
                 sendUpdate(i[0])
