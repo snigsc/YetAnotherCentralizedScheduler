@@ -84,6 +84,7 @@ if mode=="RANDOM":
         logs(mode)
         f=['RANDOM_joblogs.csv','RANDOM_tasklogs.csv']
         heatMap(f)
+        print('Please check current working directory for the heatmap.')
     else:
         print('Files do not exist.')
     exit()
@@ -92,6 +93,7 @@ elif mode=="RR":
         logs(mode)
         f=['RR_joblogs.csv','RR_tasklogs.csv']
         heatMap(f)
+        print('Please check current working directory for the heatmap.')
     else:
         print('Files do not exist.')
     exit()
@@ -100,11 +102,19 @@ elif mode=="LL":
         logs(mode)
         f=['LL_joblogs.csv','LL_tasklogs.csv']
         heatMap(f)
+        print('Please check current working directory for the heatmap.')
     exit()
 elif mode=="ALL":
     if not os.path.isfile('RR_joblogs.csv') or not os.path.isfile('RR_tasklogs.csv') or not os.path.isfile('LL_joblogs.csv') or not os.path.isfile('LL_tasklogs.csv') or not os.path.isfile('RANDOM_joblogs.csv') or not os.path.isfile('RANDOM_tasklogs.csv'):
         print('Files do not exist.')
         exit()
+
+    print('RANDOM logs:')
+    logs('RANDOM')
+    print('\nRound Robin logs:')
+    logs('RR')
+    print('\nLeast Loaded logs:')
+    logs('LL')
 
     f_RANDOM=['RANDOM_joblogs.csv','RANDOM_tasklogs.csv']
     f_RR=['RR_joblogs.csv','RR_tasklogs.csv']
@@ -114,4 +124,4 @@ elif mode=="ALL":
     heatMap(f_LL)
 
     barChart()
-    print('Done. Please check current working directory for files:\n barChart.png\n RANDOM_tasklogs.png\n RR_tasklogs.png\n LL_tasklogs.png')
+    print('\nDone. Please check current working directory for files:\n barChart.png\n RANDOM_tasklogs.png\n RR_tasklogs.png\n LL_tasklogs.png')
