@@ -10,6 +10,7 @@ from statistics import mean
 from statistics import median
 import os
 
+# list of reduce tasks with no dependencies
 red_tasks = []
 
 # Random Scheduler - Randomly schedules tasks to worker with free slots - returns worker
@@ -65,11 +66,7 @@ def sendTask(task,worker):
     clientSocket.send(msg)
     clientSocket.close()
 
-# def callScheduleReduceTask(wl,job):
-#     lock.acquire()
-#     reqList[job].scheduleReduceTask(wl)
-#     lock.release()
-
+# schedules the lined up reduce tasks and sends them to worker for execution
 def scheduleReduceTask(wl):
     lock = threading.Lock()
     while red_tasks:
@@ -246,7 +243,8 @@ class Request:
         # start and end time for each job
         self.start = start_time
         self.end = end_time
- 
+
+    # schedules map tasks and sends them to worker for execution
     def scheduleMapTask(self, wl):
         for i in self.maps:
             # freeWorker -> worker that the task gets assigned to according to the selected algo
@@ -273,7 +271,7 @@ class Request:
         print(self.maps)
         print(self.reds) 
 
-
+# delete existing log files and create new csv files
 def delExistingFile(scheduler):
     # joblogs.csv -> File with time taken for each of the jobs to execute
     if os.path.exists(scheduler+'_joblogs.csv'):
@@ -288,19 +286,17 @@ def delExistingFile(scheduler):
         f.write('WorkerID,taskID,startTime,endTime,TaskCompletionTime\n')
     f.close()
 
+
 if __name__ == '__main__':
     workersconfig = json.load(open(sys.argv[1],'r'))
     # workersList -> list of 3 worker objects
     workersList = []
     for i in workersconfig['workers']:
-        workersList.append(Worker(i['worker_id'],i['slots'],i['port'],0))   
+        workersList.append(Worker(i['worker_id'],i['slots'],i['port'],0))
+
     # CLI argument for scheduling algo
     global scheduler
     scheduler = sys.argv[2]
-    # list of all request objects sent to Master
-    reqList = []
-    # creating lock object to take care of critical sections of the code
-    lock = threading.Lock()
     if scheduler == 'RR':
         algo = roundRobin
     elif scheduler == 'RANDOM':
@@ -311,6 +307,13 @@ if __name__ == '__main__':
         print("Invalid scheduling algorithm")
         exit()
     delExistingFile(scheduler)
+    
+    # list of all request objects sent to Master
+    reqList = []
+    
+    # creating lock object to take care of critical sections of the code
+    lock = threading.Lock()
+
     # thread t1 -> gets and assigns tasks in the requests
     t1 = threading.Thread(target=getRequest, args=(workersList,))
     # thread t2 -> listens to worker for task updates

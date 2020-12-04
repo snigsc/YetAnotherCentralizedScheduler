@@ -25,9 +25,9 @@ Here, scheduling algorithm can take the following values - LL (least loaded), RA
 
 5. Repeat steps 2 to 4 for each scheduling algorithm and run the following command on T5 to analyse the results obtained:  
 `python3 Analysis.py <mode>`  
-- Enter mode '1' for individual logs of algorithms - prints mean and median times of already run scheduling algorithms on the terminal.  
-- Enter mode '2' for visual analysis - generates a bar plot comparing the three algorithms and a heat map for each algorithm depicting number of tasks running on each machine at regular time intervals.  
-**Note:** Mode 2 (visual analysis) will only generate plots if all the three algorithms have been tested prior to running analysis.  
+- Enter mode 'RANDOM' or 'RR' or 'LL' to analyse individual logs of the scheduling algorithm mentioned - prints mean and median times of already run scheduling algorithms on the terminal and creates a heat map depicting number of tasks running on each machine at regular time intervals.  
+- Enter mode 'ALL' for visual analysis - generates a bar plot comparing the three algorithms and a heat map for each algorithm depicting number of tasks running on each machine at regular time intervals.  
+**Note:** Mode 'ALL' (visual analysis) will only generate plots if all the three algorithms have been tested prior to running analysis.  
   
   
     
@@ -36,4 +36,5 @@ Here, scheduling algorithm can take the following values - LL (least loaded), RA
 - Sakshi Shetty [PES1201800190]
 - Snigdha S Chenjeri [PES1201800045]
 - Swanuja Maslekar [PES1201800369]
+
 
